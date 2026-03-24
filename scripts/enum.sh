@@ -8,21 +8,18 @@ PORT_FILE="$HOST_DIR/ports.txt"
 
 while read -r PORT; do
 
+    echo "[DEBUG] Processing port: $PORT"
+
     case $PORT in
 
-        80|443|8080|5001)
-            echo "[+] Web detected on $IP:$PORT"
-            
-            mkdir -p $HOST_DIR/web
-
-            echo "[DEBUG] BASE_DIR: $BASE_DIR"
-            echo "[DEBUG] WORDLIST: $BASE_DIR/wordlists/common.txt"
-            gobuster dir \
-            -u http://$IP:$PORT \
-            -w $BASE_DIR/wordlists/common.txt \
-            -o $HOST_DIR/web/gobuster_$PORT.txt
+        80|8080|5001)
+            URL="http://$IP:$PORT"
             ;;
-        
+
+        443)
+            URL="https://$IP:$PORT"
+            ;;
+
         445)
             echo "[+] SMB detected on $IP"
             
@@ -30,8 +27,10 @@ while read -r PORT; do
             
             nmap --script smb-enum-shares -p 445 $IP \
                 -oN $HOST_DIR/smb/smb.txt
+            
+            continue
             ;;
-        
+
         21)
             echo "[+] FTP detected on $IP"
             
@@ -39,12 +38,28 @@ while read -r PORT; do
             
             nmap --script ftp-anon -p 21 $IP \
                 -oN $HOST_DIR/ftp/ftp.txt
+            
+            continue
             ;;
-        
+
         *)
             echo "[-] No automation for port $PORT"
+            continue
             ;;
-    
+
     esac
 
-done < $PORT_FILE
+    # Web handling (only runs if URL is set)
+    echo "[+] Web detected on $URL"
+
+    mkdir -p $HOST_DIR/web
+
+    gobuster dir \
+        -u $URL \
+        -w $BASE_DIR/wordlists/common.txt \
+        -x php,txt,html \
+        -k \
+        -o $HOST_DIR/web/gobuster_$PORT.txt \
+        2>&1 | tee $HOST_DIR/web/debug_$PORT.log
+
+done < "$PORT_FILE"
