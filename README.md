@@ -1,4 +1,4 @@
-# 🔍 Simple Network Recon & Enumeration Tool
+#  Simple Network Recon & Enumeration Tool
 
 ##  Overview
 
@@ -42,7 +42,7 @@ python3 scanner.py 10.10.10.21
 
 ---
 
-## 🔎 Example Output
+##  Example Output
 
 ```
 [+] Scanning host: 10.10.10.21
