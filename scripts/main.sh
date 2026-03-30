@@ -33,6 +33,7 @@ while read -r TARGET; do
     cat $OUTDIR/live_hosts/ips.txt
     
     while read -r IP; do
+        echo ""
         echo "[+] Scanning host: $IP"
         
         HOST_DIR="$OUTDIR/scans/$IP"
@@ -46,13 +47,14 @@ while read -r TARGET; do
         
         # Decision engine
         if [ -s $HOST_DIR/ports.txt ]; then
-            $SCRIPT_DIR/enum.sh $IP $HOST_DIR $BASE_DIR
+            $SCRIPT_DIR/enum.sh $IP $HOST_DIR $BASE_DIR true
         else
             echo "[-] No open ports on $IP"
         fi
         
     done < $OUTDIR/live_hosts/ips.txt
         
+    echo ""
     echo "[+] Finished subnet: $CLEAN_TARGET"
     echo "----------------------------------------"
 
