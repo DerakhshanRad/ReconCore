@@ -1,24 +1,87 @@
 #!/bin/bash
 
-IP=$1
-OUTDIR=$2
-BASE_DIR=$3
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 
-echo "[+] Fast scanning $IP"
+TARGET="$1"
+OUTDIR="$2"
+BASE_DIR="$3"
 
-mkdir -p $OUTDIR/scans
+echo "[DEBUG] scanner.sh started"
+echo "[DEBUG] TARGET=$TARGET"
+echo "[DEBUG] OUTDIR=$OUTDIR"
 
-# FAST scan first
-nmap -T4 --top-ports 100 $IP -oN $OUTDIR/scans/fast.txt
-
-# Extract ports
-grep "open" $OUTDIR/scans/fast.txt | cut -d "/" -f1 > $OUTDIR/ports.txt
-
-# Deep scan only if ports found
-if [ -s $OUTDIR/ports.txt ]; then
-    echo "[+] Deep scan $IP"
-    nmap -T4 -sC -sV -p $(cat $OUTDIR/ports.txt | tr '\n' ',') $IP \
-        -oN $OUTDIR/scans/deep.txt
+# safety checks
+if [ -z "$TARGET" ] || [ -z "$OUTDIR" ]; then
+    echo "[-] Missing arguments"
+    echo "Usage: scanner.sh <target> <outdir> <base_dir>"
+    exit 1
 fi
 
-bash $BASE_DIR/scripts/enum.sh "$IP" "$OUTDIR" "$BASE_DIR"
+mkdir -p "$OUTDIR/scans"
+mkdir -p "$OUTDIR/live_hosts"
+
+# -----------------------
+# HOST DISCOVERY
+# -----------------------
+echo "[+] Fast scanning: $TARGET"
+
+nmap -sn -PS22,80,443 "$TARGET" -oN "$OUTDIR/live_hosts/ping.txt"
+
+# extract live IPs safely
+grep "Nmap scan report for" "$OUTDIR/live_hosts/ping.txt" \
+| awk '{print $NF}' > "$OUTDIR/live_hosts/ips.txt"
+
+echo "[+] Live hosts found:"
+cat "$OUTDIR/live_hosts/ips.txt"
+
+# -----------------------
+# FALLBACK SCAN (if empty)
+# -----------------------
+if [ ! -s "$OUTDIR/live_hosts/ips.txt" ]; then
+    echo "[-] No hosts found, fallback scan..."
+
+    nmap -Pn -p 22,80,443 --open "$TARGET" \
+        -oN "$OUTDIR/live_hosts/fallback.txt"
+
+    grep "Nmap scan report for" "$OUTDIR/live_hosts/fallback.txt" \
+    | awk '{print $NF}' > "$OUTDIR/live_hosts/ips.txt"
+fi
+
+# -----------------------
+# PER HOST SCAN
+# -----------------------
+while read -r IP; do
+
+    IP=$(echo "$IP" | tr -d '\r' | xargs)
+
+    [ -z "$IP" ] && continue
+
+    echo "[+] Scanning host: $IP"
+
+    SAFE_IP=$(echo "$IP" | tr '.' '_')
+
+    HOST_DIR="$OUTDIR/scans/$SAFE_IP"
+    mkdir -p "$HOST_DIR"
+
+    # full scan
+    nmap -T4 -sC -sV "$IP" -oN "$HOST_DIR/nmap.txt"
+
+    # extract open ports safely
+    grep "/tcp.*open" "$HOST_DIR/nmap.txt" \
+    | awk -F/ '{print $1}' > "$HOST_DIR/ports.txt"
+
+    echo "[+] Open ports for $IP:"
+    cat "$HOST_DIR/ports.txt"
+
+    # -----------------------
+    # CALL ENUM MODULE (FIXED)
+    # -----------------------
+    if [ -s "$HOST_DIR/ports.txt" ]; then
+        bash "$SCRIPT_DIR/enum.sh" "$IP" "$HOST_DIR" "$BASE_DIR"
+    else
+        echo "[-] No open ports detected for $IP"
+    fi
+
+done < "$OUTDIR/live_hosts/ips.txt"
+
+echo "[+] Scan complete"

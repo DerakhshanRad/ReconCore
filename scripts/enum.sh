@@ -1,39 +1,69 @@
 #!/bin/bash
 
 IP=$1
-OUTDIR=$2
+HOST_DIR=$2
 BASE_DIR=$3
 
-PORT_FILE="$OUTDIR/ports.txt"
+PORT_FILE="$HOST_DIR/ports.txt"
 
-echo ""
-echo "[+] ENUMERATION: $IP"
+echo "[+] ENUM: $IP"
+
+[ ! -f "$PORT_FILE" ] && exit 0
 
 while read -r PORT; do
 
-    case $PORT in
+    [ -z "$PORT" ] && continue
 
-        445)
-            bash $BASE_DIR/modules/smb.sh $IP $OUTDIR
+    echo "[+] Port: $PORT"
+
+    case "$PORT" in
+
+        80|443|8080|8000|8888|5001)
+
+            if [ "$PORT" = "443" ]; then
+                URL="https://$IP:$PORT"
+            else
+                URL="http://$IP:$PORT"
+            fi
+
+            echo "[WEB] $URL"
+
+            mkdir -p "$HOST_DIR/web"
+
+            gobuster dir \
+                -u "$URL" \
+                -w "$BASE_DIR/wordlists/common.txt" \
+                -x php,txt,html \
+                -k \
+                -o "$HOST_DIR/web/gobuster_$PORT.txt" \
+                2>/dev/null
             ;;
 
-        80|443|8080|8000|9090)
-            bash $BASE_DIR/modules/web.sh $IP $PORT $OUTDIR $BASE_DIR
+        445)
+            echo "[SMB] Detected"
+
+            mkdir -p "$HOST_DIR/smb"
+
+            nmap --script smb-enum-shares -p 445 "$IP" \
+                -oN "$HOST_DIR/smb/smb.txt"
             ;;
 
         22)
-            bash $BASE_DIR/modules/ssh.sh $IP
+            echo "[SSH] Detected"
             ;;
 
         21)
-            bash $BASE_DIR/modules/ftp.sh $IP $OUTDIR
+            echo "[FTP] Detected"
+
+            mkdir -p "$HOST_DIR/ftp"
+
+            nmap --script ftp-anon -p 21 "$IP" \
+                -oN "$HOST_DIR/ftp/ftp.txt"
             ;;
 
         *)
-            echo "[-] Skipping port $PORT"
+            echo "[-] No automation for $PORT"
             ;;
     esac
 
 done < "$PORT_FILE"
-
-bash $BASE_DIR/scripts/report.sh $IP $OUTDIR
