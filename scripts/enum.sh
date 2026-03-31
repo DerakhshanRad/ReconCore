@@ -1,8 +1,8 @@
 #!/bin/bash
 
-IP=$1
-HOST_DIR=$2
-BASE_DIR=$3
+IP="$1"
+HOST_DIR="$2"
+BASE_DIR="$3"
 
 PORT_FILE="$HOST_DIR/ports.txt"
 
@@ -12,6 +12,7 @@ echo "[+] ENUM: $IP"
 
 while read -r PORT; do
 
+    PORT=$(echo "$PORT" | tr -d '\r' | xargs)
     [ -z "$PORT" ] && continue
 
     echo "[+] Port: $PORT"
@@ -19,6 +20,8 @@ while read -r PORT; do
     case "$PORT" in
 
         80|443|8080|8000|8888|5001)
+
+            mkdir -p "$HOST_DIR/web"
 
             if [ "$PORT" = "443" ]; then
                 URL="https://$IP:$PORT"
@@ -28,23 +31,19 @@ while read -r PORT; do
 
             echo "[WEB] $URL"
 
-            mkdir -p "$HOST_DIR/web"
-
-            gobuster dir \
+            timeout 120 gobuster dir \
                 -u "$URL" \
                 -w "$BASE_DIR/wordlists/common.txt" \
                 -x php,txt,html \
                 -k \
-                -o "$HOST_DIR/web/gobuster_$PORT.txt" \
-                2>/dev/null
+                -o "$HOST_DIR/web/gobuster_$PORT.txt"
             ;;
 
         445)
             echo "[SMB] Detected"
-
             mkdir -p "$HOST_DIR/smb"
 
-            nmap --script smb-enum-shares -p 445 "$IP" \
+            timeout 120 nmap --script smb-enum-shares -p 445 "$IP" \
                 -oN "$HOST_DIR/smb/smb.txt"
             ;;
 
@@ -54,10 +53,9 @@ while read -r PORT; do
 
         21)
             echo "[FTP] Detected"
-
             mkdir -p "$HOST_DIR/ftp"
 
-            nmap --script ftp-anon -p 21 "$IP" \
+            timeout 120 nmap --script ftp-anon -p 21 "$IP" \
                 -oN "$HOST_DIR/ftp/ftp.txt"
             ;;
 
@@ -67,3 +65,5 @@ while read -r PORT; do
     esac
 
 done < "$PORT_FILE"
+
+echo "[+] ENUM complete for $IP"

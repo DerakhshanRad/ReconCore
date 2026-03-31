@@ -1,25 +1,20 @@
 #!/bin/bash
 
-INPUT_FILE=$1
-OUTPUT_FILE=$2
+#!/bin/bash
 
-echo "[+] Starting target filtering..."
+INPUT="$1"
+OUTPUT="$2"
 
-if [ ! -f "$INPUT_FILE" ]; then
-    echo "[-] Input file not found: $INPUT_FILE"
+if [ -z "$INPUT" ] || [ -z "$OUTPUT" ]; then
+    echo "Usage: filter.sh <input> <output>"
     exit 1
 fi
 
-# Clean + validate + deduplicate
-cat "$INPUT_FILE" \
-| tr -d '\r' \
-| sed '/^$/d' \
-| xargs -n1 \
-| grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}(/([0-9]|[12][0-9]|3[0-2]))?$' \
-| sort -u > "$OUTPUT_FILE"
+cat "$INPUT" \
+    | tr -d '\r' \
+    | sed 's/^[ \t]*//;s/[ \t]*$//' \
+    | grep -v '^$' \
+    | sort -u \
+    > "$OUTPUT"
 
-echo "[+] Filtering complete"
-echo "[+] Clean targets saved to: $OUTPUT_FILE"
-
-echo "[+] Final targets:"
-cat "$OUTPUT_FILE"
+echo "[+] Filtered targets saved to $OUTPUT"
