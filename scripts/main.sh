@@ -3,8 +3,14 @@
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 BASE_DIR=$(dirname "$SCRIPT_DIR")
 
-TARGET_FILE="$BASE_DIR/input/target.txt"
+FILTERED_FILE="$BASE_DIR/input/targets_clean.txt"
 
+# Run filtering first
+bash "$SCRIPT_DIR/filter.sh" \
+    "$BASE_DIR/input/target.txt" \
+    "$FILTERED_FILE"
+
+# Read CLEAN targets (FIXED HERE)
 while IFS= read -r TARGET || [ -n "$TARGET" ]; do
 
     TARGET=$(echo "$TARGET" | tr -d '\r' | xargs)
@@ -24,4 +30,5 @@ while IFS= read -r TARGET || [ -n "$TARGET" ]; do
 
     bash "$SCRIPT_DIR/scanner.sh" "$TARGET" "$OUTDIR" "$BASE_DIR"
 
-done < "$TARGET_FILE"
+# 🔥 FIX: use FILTERED_FILE instead of TARGET_FILE
+done < "$FILTERED_FILE"
